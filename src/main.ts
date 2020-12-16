@@ -60,12 +60,10 @@ async function main() {
     const actionInput = input(process.env);
     const { githubToken, organization, owner, repo, iamUserName } = actionInput;
 
-    let secrets;
-    if (organization == null) {
-      secrets = new GitHubRepositorySecrets(githubToken, owner, repo);
-    } else {
-      secrets = new GitHubOrganizationSecrets(githubToken, organization);
-    }
+    const secrets =
+      organization == null
+        ? new GitHubRepositorySecrets(githubToken, owner, repo)
+        : new GitHubOrganizationSecrets(githubToken, organization);
 
     const username =
       iamUserName ||
