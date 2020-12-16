@@ -32,26 +32,27 @@ export async function rotate(
   }
 
   logger.info("Provisoning new access key");
-  //const { AccessKeyId, SecretAccessKey } = await credentials.create();
-  const AccessKeyId = process.env.AWS_ACCESS_KEY_ID as string;
-  const SecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY as string;
+  const { AccessKeyId, SecretAccessKey } = await credentials.create();
 
   logger.info("Fetching public key");
   const { key, key_id } = await secrets.publicKey();
+
   logger.info(`Upserting secret ${githubAccessKeyIdName}`);
   await secrets.upsert(
     githubAccessKeyIdName,
     encrypt(AccessKeyId, key),
     key_id
   );
+
   logger.info(`Upserting secret ${githubSecretAccessKeyName}`);
   await secrets.upsert(
     githubSecretAccessKeyName,
     encrypt(SecretAccessKey, key),
     key_id
   );
-  // logger.info("Deleting previous access key");
-  // await credentials.delete(keys[0]);
+
+  logger.info("Deleting previous access key");
+  await credentials.delete(keys[0]);
 }
 
 async function main() {

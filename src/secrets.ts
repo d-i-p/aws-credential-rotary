@@ -26,7 +26,7 @@ export class GitHubRepositorySecrets implements Secrets {
     this.repo = repo;
   }
 
-  publicKey = async () => {
+  async publicKey() {
     return (
       await this.octokit.request(
         "GET /repos/{owner}/{repo}/actions/secrets/public-key",
@@ -36,13 +36,9 @@ export class GitHubRepositorySecrets implements Secrets {
         }
       )
     ).data;
-  };
+  }
 
-  upsert = async (
-    secret_name: string,
-    encrypted_value: string,
-    key_id: string
-  ) => {
+  async upsert(secret_name: string, encrypted_value: string, key_id: string) {
     await this.octokit.request(
       "PUT /repos/{owner}/{repo}/actions/secrets/{secret_name}",
       {
@@ -53,7 +49,7 @@ export class GitHubRepositorySecrets implements Secrets {
         key_id,
       }
     );
-  };
+  }
 }
 
 export class GitHubOrganizationSecrets implements Secrets {
@@ -65,19 +61,20 @@ export class GitHubOrganizationSecrets implements Secrets {
     this.organization = organization;
   }
 
-  publicKey = async () => {
+  async publicKey() {
     return (
       await this.octokit.request("GET /orgs/{org}/actions/secrets/public-key", {
         org: this.organization,
       })
     ).data;
-  };
+  }
 
-  upsert = async (
-    secret_name: string,
-    encrypted_value: string,
-    key_id: string
-  ) => {
+  async upsert(secret_name: string, encrypted_value: string, key_id: string) {
+    const oldSecret = await this.getSecret(secret_name);
+    const repositoryIds = await this.getSelectedRepositoryIdsOfSecret(
+      secret_name
+    );
+
     await this.octokit.request(
       "PUT /orgs/{org}/actions/secrets/{secret_name}",
       {
@@ -85,8 +82,41 @@ export class GitHubOrganizationSecrets implements Secrets {
         secret_name,
         encrypted_value,
         key_id,
-        visibility: "private",
+        visibility: oldSecret.visibility,
+        selected_repository_ids: repositoryIds,
       }
     );
-  };
+  }
+
+  async getSecret(secret_name: string) {
+    try {
+      return (
+        await this.octokit.request(
+          "GET /orgs/{org}/actions/secrets/{secret_name}",
+          {
+            org: this.organization,
+            secret_name,
+          }
+        )
+      ).data;
+    } catch (e) {
+      throw new Error(
+        `Could not retrieve organization secret ${this.organization}/${secret_name}. Root cause: ${e.message}`
+      );
+    }
+  }
+
+  async getSelectedRepositoryIdsOfSecret(
+    secret_name: string
+  ): Promise<Array<string>> {
+    const { data } = await this.octokit.request(
+      "GET /orgs/{org}/actions/secrets/{secret_name}/repositories",
+      {
+        org: this.organization,
+        secret_name,
+      }
+    );
+
+    return data.repositories.map((r) => r.id);
+  }
 }
