@@ -1,7 +1,12 @@
 import { setFailed, info } from "@actions/core";
 import AWS from "aws-sdk";
 import { AwsCredentials, Credentials } from "./credentials";
-import { GitHubSecrets, Secrets, encrypt } from "./secrets";
+import {
+  GitHubRepositorySecrets,
+  Secrets,
+  encrypt,
+  GitHubOrganizationSecrets,
+} from "./secrets";
 import { Input, input } from "./input";
 
 export interface Logger {
@@ -27,8 +32,11 @@ export async function rotate(
   }
 
   logger.info("Provisoning new access key");
-  const { AccessKeyId, SecretAccessKey } = await credentials.create();
-  logger.info("Fetching repository public key");
+  //const { AccessKeyId, SecretAccessKey } = await credentials.create();
+  const AccessKeyId = process.env.AWS_ACCESS_KEY_ID as string;
+  const SecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY as string;
+
+  logger.info("Fetching public key");
   const { key, key_id } = await secrets.publicKey();
   logger.info(`Upserting secret ${githubAccessKeyIdName}`);
   await secrets.upsert(
@@ -42,15 +50,22 @@ export async function rotate(
     encrypt(SecretAccessKey, key),
     key_id
   );
-  logger.info("Deleting previous access key");
-  await credentials.delete(keys[0]);
+  // logger.info("Deleting previous access key");
+  // await credentials.delete(keys[0]);
 }
 
 async function main() {
   try {
     const actionInput = input(process.env);
-    const { githubToken, owner, repo, iamUserName } = actionInput;
-    const secrets = new GitHubSecrets(githubToken, owner, repo);
+    const { githubToken, organization, owner, repo, iamUserName } = actionInput;
+
+    let secrets;
+    if (organization == null) {
+      secrets = new GitHubRepositorySecrets(githubToken, owner, repo);
+    } else {
+      secrets = new GitHubOrganizationSecrets(githubToken, organization);
+    }
+
     const username =
       iamUserName ||
       (await new AWS.STS().getCallerIdentity().promise()).Arn?.split("/")[1] ||

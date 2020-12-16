@@ -15,7 +15,7 @@ export const encrypt = (plaintext: string, publicKey: string): string =>
     seal(Buffer.from(plaintext), Buffer.from(publicKey, "base64"))
   ).toString("base64");
 
-export class GitHubSecrets implements Secrets {
+export class GitHubRepositorySecrets implements Secrets {
   private readonly octokit: Octokit;
   private readonly owner: string;
   private readonly repo: string;
@@ -51,6 +51,41 @@ export class GitHubSecrets implements Secrets {
         secret_name,
         encrypted_value,
         key_id,
+      }
+    );
+  };
+}
+
+export class GitHubOrganizationSecrets implements Secrets {
+  private readonly octokit: Octokit;
+  private readonly organization: string;
+
+  constructor(githubToken: string, organization: string) {
+    this.octokit = new Octokit({ auth: githubToken });
+    this.organization = organization;
+  }
+
+  publicKey = async () => {
+    return (
+      await this.octokit.request("GET /orgs/{org}/actions/secrets/public-key", {
+        org: this.organization,
+      })
+    ).data;
+  };
+
+  upsert = async (
+    secret_name: string,
+    encrypted_value: string,
+    key_id: string
+  ) => {
+    await this.octokit.request(
+      "PUT /orgs/{org}/actions/secrets/{secret_name}",
+      {
+        org: this.organization,
+        secret_name,
+        encrypted_value,
+        key_id,
+        visibility: "private",
       }
     );
   };
